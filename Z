@@ -1,0 +1,75 @@
+//@version=6
+// Ribbon Flip Signals — BUY at first green, SELL at first red
+indicator("Ribbon Flip Signals (green=BUY, red=SELL)", shorttitle="Ribbon Flip Signals", overlay=true, max_labels_count=500)
+
+// ==== Inputs ====
+groupRibbon  = "Ribbon EMAs"
+emaLen1 = input.int(8,  "Ribbon EMA 1", minval=1, group=groupRibbon)
+emaLen2 = input.int(13, "Ribbon EMA 2", minval=1, group=groupRibbon)
+emaLen3 = input.int(21, "Ribbon EMA 3", minval=1, group=groupRibbon)
+emaLen4 = input.int(34, "Ribbon EMA 4", minval=1, group=groupRibbon)
+emaLen5 = input.int(55, "Ribbon EMA 5", minval=1, group=groupRibbon)
+emaLen6 = input.int(89, "Ribbon EMA 6", minval=1, group=groupRibbon)
+
+groupBase = "Ribbon Color Driver"
+fastLen   = input.int(21, "Fast EMA (color driver)", minval=1, group=groupBase)
+slowLen   = input.int(34, "Slow EMA (color driver)", minval=1, group=groupBase)
+
+confirmOnClose = input.bool(true, "Confirm on bar close (no intrabar repaint)", group="Signals / Alerts")
+showLabels     = input.bool(true,  "Show BUY/SELL labels", group="Signals / Alerts")
+showArrows     = input.bool(true,  "Show arrows (plotshape)", group="Signals / Alerts")
+
+// ==== Ribbon EMAs ====
+r1 = ta.ema(close, emaLen1)
+r2 = ta.ema(close, emaLen2)
+r3 = ta.ema(close, emaLen3)
+r4 = ta.ema(close, emaLen4)
+r5 = ta.ema(close, emaLen5)
+r6 = ta.ema(close, emaLen6)
+
+// Color driver (simple & robust)
+emaFast = ta.ema(close, fastLen)
+emaSlow = ta.ema(close, slowLen)
+
+// Ribbon color state
+isGreen = emaFast > emaSlow
+isRed   = emaFast < emaSlow
+
+// Flip detection (first bar of the new color)
+buyFlip  = isGreen and not isGreen[1]
+sellFlip = isRed   and not isRed[1]
+
+// Respect confirm-on-close
+sigBuy  = confirmOnClose ? (buyFlip  and barstate.isconfirmed) : buyFlip
+sigSell = confirmOnClose ? (sellFlip and barstate.isconfirmed) : sellFlip
+
+// ==== Plots ====
+colUp = color.new(color.lime, 0)
+colDn = color.new(color.red,  0)
+
+plot(r1, color=isGreen?colUp:colDn, title="Ribbon EMA 1", linewidth=1)
+plot(r2, color=isGreen?colUp:colDn, title="Ribbon EMA 2", linewidth=1)
+plot(r3, color=isGreen?colUp:colDn, title="Ribbon EMA 3", linewidth=1)
+plot(r4, color=isGreen?colUp:colDn, title="Ribbon EMA 4", linewidth=1)
+plot(r5, color=isGreen?colUp:colDn, title="Ribbon EMA 5", linewidth=1)
+plot(r6, color=isGreen?colUp:colDn, title="Ribbon EMA 6", linewidth=1)
+
+plot(emaFast, "Fast EMA", color=color.new(color.lime, 0), linewidth=2)
+plot(emaSlow, "Slow EMA", color=color.new(color.red,  0), linewidth=2)
+
+// Optional arrows
+plotshape(showArrows and sigBuy,  title="BUY arrow",  style=shape.triangleup,   size=size.tiny, location=location.belowbar, color=color.lime, text="BUY")
+plotshape(showArrows and sigSell, title="SELL arrow", style=shape.triangledown, size=size.tiny, location=location.abovebar, color=color.red,  text="SELL")
+
+// Labels (one per bar side)
+var int lastLabelBar = na
+canLabel = na(lastLabelBar) or lastLabelBar != bar_index
+
+if showLabels and sigBuy and canLabel
+    label.new(bar_index, low, "BUY",  style=label.style_label_up,   color=color.new(color.lime, 0), textcolor=color.black), lastLabelBar := bar_index
+if showLabels and sigSell and canLabel
+    label.new(bar_index, high,"SELL", style=label.style_label_down, color=color.new(color.red,  0), textcolor=color.white), lastLabelBar := bar_index
+
+// Alerts
+alertcondition(sigBuy,  title="Ribbon BUY",  message="BUY (Ribbon turned GREEN): {{ticker}} {{interval}} close={{close}}")
+alertcondition(sigSell, title="Ribbon SELL", message="SELL (Ribbon turned RED): {{ticker}} {{interval}} close={{close}}")
